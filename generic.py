@@ -72,3 +72,16 @@ def literal_compare(str_to_match: str) -> type[LiteralCompare]:
         "length": len(str_to_match)
     }
     return type(name, (LiteralCompare,), attrs)
+
+
+class DefaultMatchAll(Matcher):
+    """
+    Implement a match_from, and defines the match_full from that.
+
+    If the 'match_start' then matches the whole string, the match_full passes
+    """
+
+    @classmethod
+    def match_full(cls, val: bytes) -> bool:
+        match_result = cls.match_start(val)
+        return (match_result is not None and match_result.length == len(val))
