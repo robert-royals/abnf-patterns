@@ -15,8 +15,8 @@ class Base64Char(ConstantLength):
         return (
             Alpha.match_full(val)
             or Digit.match_full(val)
-            or literal_compare("+").match_full(val)
-            or literal_compare("/").match_full(val)
+            or literal_compare(b"+").match_full(val)
+            or literal_compare(b"/").match_full(val)
         )
 
 
@@ -31,6 +31,8 @@ class Base64Data(ConstantLength):
 class Base64Padding(ConstantLength):
     length = 4
 
+    padding_matcher = literal_compare(b"=")
+
     @classmethod
     def match_length_correct(cls, val: bytes) -> bool:
         return cls.match_n_padding(val, 1) or cls.match_n_padding(val, 2)
@@ -42,7 +44,7 @@ class Base64Padding(ConstantLength):
             for i in range(cls.length - n)
         )
         padding_part = all(
-            literal_compare("=").match_from(val, i)
+            cls.padding_matcher.match_from(val, i)
             for i in range(cls.length - n, cls.length)
         )
         return data_part and padding_part

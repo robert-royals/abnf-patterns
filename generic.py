@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class MatchResult:
     def __init__(self, start: int, length: int):
         self.start = start
@@ -55,7 +58,21 @@ class ConstantLength(Matcher):
             return None
 
 
-class LiteralCompare(ConstantLength):
+class LiteralMetaClass(type):
+    def __new__(
+        cls,
+        name: str,
+        bases: tuple[type, ...],
+        dct: dict[str, Any],
+    ) -> Any:
+        # Set the length on the class based on the str being matched to
+        str_to_match: bytes | None = dct.get("str_to_match")
+        if str_to_match is not None:
+            dct["length"] = len(str_to_match)
+        return type.__new__(cls, name, bases, dct)
+
+
+class LiteralCompare(ConstantLength, metaclass=LiteralMetaClass):
     str_to_match: bytes
 
     @classmethod
@@ -64,12 +81,11 @@ class LiteralCompare(ConstantLength):
         return val == cls.str_to_match
 
 
-def literal_compare(str_to_match: str) -> type[LiteralCompare]:
+def literal_compare(str_to_match: bytes) -> type[LiteralCompare]:
     # Takes a string such as '+' and creates a Matcher class for it
-    name = f"LiteralCompare<{str_to_match}>"
+    name = f"LiteralCompare<{str_to_match.decode()}>"
     attrs = {
-        "str_to_match": str_to_match.encode(),
-        "length": len(str_to_match)
+        "str_to_match": str_to_match,
     }
     return type(name, (LiteralCompare,), attrs)
 

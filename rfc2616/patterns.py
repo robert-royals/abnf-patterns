@@ -1,4 +1,10 @@
-from generic import ConstantLength
+from generic import (
+    ConstantLength,
+    DefaultMatchAll,
+    MatchResult,
+    LiteralCompare,
+)
+import special_chars
 
 
 class Octet(ConstantLength):
@@ -47,3 +53,45 @@ class Digit(ConstantLength):
     @classmethod
     def match_length_correct(self, val: bytes) -> bool:
         return b"0" <= val <= b"9"
+
+
+class CRLF(LiteralCompare):
+    str_to_match = special_chars.carriage_return + special_chars.linefeed
+
+
+class LWS(DefaultMatchAll):
+    """
+        Linear white space
+
+        LWS            = [CRLF] 1*( SP | HT )
+
+        An optional CRLF followed by a non-empty sequence of spaces and tabs
+    """
+    class WhiteSpace(ConstantLength):
+        length = 1
+
+        @classmethod
+        def match_length_correct(cls, val: bytes) -> bool:
+            return val in (special_chars.space, special_chars.horizontal_tab)
+
+    @classmethod
+    def match_from(cls, val: bytes, start: int) -> MatchResult | None:
+        matched_length = 0
+        crlf_match = CRLF.match_from(val, start)
+        if crlf_match is not None:
+            matched_length += crlf_match.length
+
+        have_whitespace = False
+
+        while 1:
+            result = cls.WhiteSpace.match_from(val, start + matched_length)
+            if result is not None:
+                matched_length += result.length
+                have_whitespace = True
+            else:
+                break
+
+        if not have_whitespace:
+            return None
+        else:
+            return MatchResult(start, matched_length)
