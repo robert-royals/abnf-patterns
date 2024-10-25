@@ -1,18 +1,49 @@
-def octet(val: bytes) -> bool:
+from generic import ConstantLength
+
+
+class Octet(ConstantLength):
     # OCTET          = <any 8-bit sequence of data>
-    return len(val) == 1
+    length = 1
+
+    @classmethod
+    def match_length_correct(self, val: bytes) -> bool:
+        return True
 
 
-def upalpha(val: bytes) -> bool:
+class UpAlpha(ConstantLength):
     # UPALPHA        = <any US-ASCII uppercase letter "A".."Z">
-    return len(val) == 1 and (b"A" <= val <= b"Z")
+    length = 1
+
+    @classmethod
+    def match_length_correct(self, val: bytes) -> bool:
+        return b"A" <= val <= b"Z"
 
 
-def loalpha(val: bytes) -> bool:
+class LoAlpha(ConstantLength):
     # LOALPHA        = <any US-ASCII lowercase letter "a".."z">
-    return len(val) == 1 and (b"a" <= val <= b"z")
+    length = 1
+
+    @classmethod
+    def match_length_correct(self, val: bytes) -> bool:
+        return b"a" <= val <= b"z"
 
 
-def alpha(val: bytes) -> bool:
+class Alpha(ConstantLength):
     # ALPHA          = UPALPHA | LOALPHA
-    return upalpha(val) or loalpha(val)
+    length = 1
+
+    @classmethod
+    def match_length_correct(self, val: bytes) -> bool:
+        return (
+            UpAlpha.match_length_correct(val)
+            or LoAlpha.match_length_correct(val)
+        )
+
+
+class Digit(ConstantLength):
+    # DIGIT          = <any US-ASCII digit "0".."9">
+    length = 1
+
+    @classmethod
+    def match_length_correct(self, val: bytes) -> bool:
+        return b"0" <= val <= b"9"
