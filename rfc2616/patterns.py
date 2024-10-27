@@ -34,27 +34,6 @@ class LoAlpha(ConstantLength):
         return b"a" <= val <= b"z"
 
 
-class Alpha(ConstantLength):
-    # ALPHA          = UPALPHA | LOALPHA
-    length = 1
-
-    @classmethod
-    def match_length_correct(self, val: bytes) -> bool:
-        return (
-            UpAlpha.match_length_correct(val)
-            or LoAlpha.match_length_correct(val)
-        )
-
-
-class Digit(ConstantLength):
-    # DIGIT          = <any US-ASCII digit "0".."9">
-    length = 1
-
-    @classmethod
-    def match_length_correct(self, val: bytes) -> bool:
-        return b"0" <= val <= b"9"
-
-
 class CRLF(LiteralCompare):
     str_to_match = special_chars.carriage_return + special_chars.linefeed
 
@@ -75,16 +54,16 @@ class LWS(DefaultMatchAll):
             return val in (special_chars.space, special_chars.horizontal_tab)
 
     @classmethod
-    def match_from(cls, val: bytes, start: int) -> MatchResult | None:
+    def match_start(cls, val: bytes) -> MatchResult | None:
         matched_length = 0
-        crlf_match = CRLF.match_from(val, start)
+        crlf_match = CRLF.match_start(val)
         if crlf_match is not None:
             matched_length += crlf_match.length
 
         have_whitespace = False
 
         while 1:
-            result = cls.WhiteSpace.match_from(val, start + matched_length)
+            result = cls.WhiteSpace.match_from(val, matched_length)
             if result is not None:
                 matched_length += result.length
                 have_whitespace = True
@@ -94,4 +73,4 @@ class LWS(DefaultMatchAll):
         if not have_whitespace:
             return None
         else:
-            return MatchResult(start, matched_length)
+            return MatchResult(start=0, length=matched_length)

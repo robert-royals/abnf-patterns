@@ -2,7 +2,7 @@ from typing import Any
 
 
 class MatchResult:
-    def __init__(self, start: int, length: int):
+    def __init__(self, *, start: int, length: int):
         self.start = start
         self.length = length
 
@@ -21,14 +21,18 @@ class Matcher:
 
     @classmethod
     def match_start(cls, val: bytes) -> MatchResult | None:
-        return cls.match_from(val, 0)
+        raise NotImplementedError
 
     @classmethod
     def match_from(cls, val: bytes, start: int) -> MatchResult | None:
         """
         Check starting at position 'from' that the pattern matches
         """
-        raise NotImplementedError
+        match_result = cls.match_start(val[start:])
+        if match_result is not None:
+            return MatchResult(start=start, length=match_result.length)
+        else:
+            return None
 
 
 class ConstantLength(Matcher):
@@ -47,13 +51,13 @@ class ConstantLength(Matcher):
             return cls.match_length_correct(val)
 
     @classmethod
-    def match_from(cls, val: bytes, start: int) -> MatchResult | None:
+    def match_start(cls, val: bytes) -> MatchResult | None:
         if (
-            len(val) >= start + cls.length
+            len(val) >= cls.length
         ) and (
-            cls.match_length_correct(val[start: start + cls.length])
+            cls.match_length_correct(val[:cls.length])
         ):
-            return MatchResult(start, cls.length)
+            return MatchResult(start=0, length=cls.length)
         else:
             return None
 

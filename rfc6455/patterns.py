@@ -1,4 +1,4 @@
-from rfc2616.patterns import Alpha, Digit
+from rfc2234.patterns import Alpha, Digit
 from generic import (
     ConstantLength,
     DefaultMatchAll,
@@ -56,15 +56,15 @@ class Base64ValueNonEmpty(DefaultMatchAll):
                                  base64-padding
     """
     @classmethod
-    def match_from(cls, val: bytes, start: int) -> MatchResult | None:
+    def match_start(cls, val: bytes) -> MatchResult | None:
         matched_length = 0
         while 1:
-            data_result = Base64Data.match_from(val, start + matched_length)
+            data_result = Base64Data.match_from(val, matched_length)
             if data_result is not None:
                 matched_length += data_result.length
             else:
                 break
-        padding_result = Base64Padding.match_from(val, start + matched_length)
+        padding_result = Base64Padding.match_from(val, matched_length)
         if matched_length == 0:
             # Only a match if the padding was found
             return padding_result
@@ -72,7 +72,7 @@ class Base64ValueNonEmpty(DefaultMatchAll):
             # Already have a match. Extend match if there is also padding.
             if padding_result is not None:
                 matched_length += padding_result.length
-            return MatchResult(start, matched_length)
+            return MatchResult(start=0, length=matched_length)
 
 
 class SecWebSocketAccept(Base64ValueNonEmpty):
