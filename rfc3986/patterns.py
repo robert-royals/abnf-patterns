@@ -102,7 +102,7 @@ class DecOctet(DefaultMatchAll):
                 return match_1
 
 
-class IPV4Address(DefaultMatchAll):
+class IPv4Address(DefaultMatchAll):
     """
         dec-octet "." dec-octet "." dec-octet "." dec-octet
     """
@@ -160,4 +160,97 @@ class LS32(DefaultMatchAll):
 
     @classmethod
     def ipv4_match(cls, val: bytes) -> MatchResult | None:
-        return IPV4Address.match_start(val)
+        return IPv4Address.match_start(val)
+
+
+class IPv6Address(DefaultMatchAll):
+    """
+          IPv6address =                            6( h16 ":" ) ls32
+                      /                       "::" 5( h16 ":" ) ls32
+                      / [               h16 ] "::" 4( h16 ":" ) ls32
+                      / [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
+                      / [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
+                      / [ *3( h16 ":" ) h16 ] "::"    h16 ":"   ls32
+                      / [ *4( h16 ":" ) h16 ] "::"              ls32
+                      / [ *5( h16 ":" ) h16 ] "::"              h16
+                      / [ *6( h16 ":" ) h16 ] "::"
+    """
+
+    colon_matcher = literal_compare(b":").match_from
+
+    @classmethod
+    def match_start(cls, val: bytes) -> MatchResult | None:
+        # First see how many repeats of
+        #     ( h16 ":" )
+        # we can find, up to a maximum of 6.
+        h16s_matched = 0
+        offset = 0
+        while h16s_matched < 6:
+            h16_match_result = H16.match_from(val, offset)
+            if h16_match_result is None:
+                break
+            colon_match_result = cls.colon_matcher(val, h16_match_result.end)
+            if colon_match_result is None:
+                # No match!
+                return None
+            offset = colon_match_result.end
+            h16s_matched += 1
+
+        if h16s_matched == 6:
+            colon_match_result = cls.colon_matcher(val, offset)
+            if colon_match_result:
+                # Cover the:
+                #     5( h16 ":" ) h16 "::" [ h16 ]
+                # cases.
+                offset += colon_match_result.length
+                h16_match_result = H16.match_from(val, offset)
+                if h16_match_result:
+                    offset += h16_match_result.length
+                return MatchResult(start=0, length=offset)
+            else:
+                # Otherwise it must continue:
+                #     h16 ::
+                # or
+                #     ls32
+                h16_match_result = H16.match_from(val, offset)
+                if not h16_match_result:
+                    return None
+                ls32_match_result = LS32.match_from(val, offset)
+                if ls32_match_result:
+                    return MatchResult(start=0, length=ls32_match_result.end)
+                # Otherwise it must end with (h16 "::")
+                offset = h16_match_result.end
+                for _ in range(2):
+                    colon_match_result = cls.colon_matcher(val, offset)
+                    if not colon_match_result:
+                        return None
+                    offset += colon_match_result.length
+                return MatchResult(start=0, length=offset)
+
+        colons = 2 if h16s_matched == 0 else 1
+        for _ in range(colons):
+            # If it is the cases of
+            #     "::" [ h16 / *5( h16 ":" ) ls32 ]
+            # we need to count an extra colon.
+            colon_match_result = cls.colon_matcher(val, offset)
+            if not colon_match_result:
+                return None
+            else:
+                offset += colon_match_result.length
+
+        # Next deal with the post "::" part. The amount of ( h16 ":" ) repeats
+        # we can have depends on how many h16s were matched previously.
+        for _ in range(6 - h16s_matched):
+            assert isinstance(colon_match_result, MatchResult)
+            h16_match_result = H16.match_from(val, colon_match_result.end)
+            if not h16_match_result:
+                return MatchResult(start=0, length=offset)
+            ls32_match_result = LS32.match_from(val, colon_match_result.end)
+            if not ls32_match_result:
+                offset = h16_match_result.end
+                return MatchResult(start=0, length=offset)
+            colon_match_result = cls.colon_matcher(val, h16_match_result.end)
+            offset = ls32_match_result.end
+            if not colon_match_result:
+                return MatchResult(start=0, length=offset)
+        return MatchResult(start=0, length=offset)

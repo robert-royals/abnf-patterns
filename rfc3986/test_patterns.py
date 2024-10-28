@@ -1,7 +1,13 @@
 from unittest import TestCase
 
 from generic import MatchResult
-from rfc3986.patterns import DecOctet, IPV4Address, H16, LS32
+from rfc3986.patterns import (
+    DecOctet,
+    H16,
+    IPv4Address,
+    IPv6Address,
+    LS32,
+)
 
 
 class TestH16(TestCase):
@@ -65,24 +71,24 @@ class TestDecOctet(TestCase):
             self.assertFalse(DecOctet.match_full(str(i).encode()))
 
 
-class TestIPV4Address(TestCase):
+class TestIPv4Address(TestCase):
     def test_ipv4_address(self) -> None:
-        self.assertTrue(IPV4Address.match_full(b"0.0.0.0"))
-        self.assertTrue(IPV4Address.match_full(b"1.1.1.1"))
-        self.assertTrue(IPV4Address.match_full(b"255.255.255.255"))
-        self.assertTrue(IPV4Address.match_full(b"1.10.19.255"))
-        self.assertTrue(IPV4Address.match_full(b"127.0.0.1"))
+        self.assertTrue(IPv4Address.match_full(b"0.0.0.0"))
+        self.assertTrue(IPv4Address.match_full(b"1.1.1.1"))
+        self.assertTrue(IPv4Address.match_full(b"255.255.255.255"))
+        self.assertTrue(IPv4Address.match_full(b"1.10.19.255"))
+        self.assertTrue(IPv4Address.match_full(b"127.0.0.1"))
 
-        self.assertFalse(IPV4Address.match_full(b"0.0.256.0"))
-        self.assertFalse(IPV4Address.match_full(b"0.0.0.259"))
-        self.assertFalse(IPV4Address.match_full(b"0.0.1000.0"))
-        self.assertFalse(IPV4Address.match_full(b"0.0.01.0"))
-        self.assertFalse(IPV4Address.match_full(b"0.0.0.00"))
-        self.assertFalse(IPV4Address.match_full(b"0.0.0.0.0"))
-        self.assertFalse(IPV4Address.match_full(b"0.0.0 .0"))
-        self.assertFalse(IPV4Address.match_full(b"0.0..0"))
-        self.assertFalse(IPV4Address.match_full(b".0.0.0.0"))
-        self.assertFalse(IPV4Address.match_full(b"..0.0.0"))
+        self.assertFalse(IPv4Address.match_full(b"0.0.256.0"))
+        self.assertFalse(IPv4Address.match_full(b"0.0.0.259"))
+        self.assertFalse(IPv4Address.match_full(b"0.0.1000.0"))
+        self.assertFalse(IPv4Address.match_full(b"0.0.01.0"))
+        self.assertFalse(IPv4Address.match_full(b"0.0.0.00"))
+        self.assertFalse(IPv4Address.match_full(b"0.0.0.0.0"))
+        self.assertFalse(IPv4Address.match_full(b"0.0.0 .0"))
+        self.assertFalse(IPv4Address.match_full(b"0.0..0"))
+        self.assertFalse(IPv4Address.match_full(b".0.0.0.0"))
+        self.assertFalse(IPv4Address.match_full(b"..0.0.0"))
 
 
 class TestLS32(TestCase):
@@ -109,3 +115,136 @@ class TestLS32(TestCase):
         self.assertTrue(LS32.match_full(b"1.2.11.255"))
 
         self.assertFalse(LS32.match_full(b"0.256.0.0"))
+
+
+class TestIPv6Address(TestCase):
+    def test_ipv6_address(self) -> None:
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0::"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0::fff"))
+
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:"))
+        self.assertFalse(IPv6Address.match_full(b"abcd"))
+        self.assertFalse(IPv6Address.match_full(b"abcd:"))
+        self.assertFalse(IPv6Address.match_full(b":abcd"))
+
+        self.assertTrue(IPv6Address.match_full(b"1080:0:0:0:8:800:200C:417A"))
+        self.assertTrue(IPv6Address.match_full(b"1080::8:800:200C:417A"))
+        self.assertTrue(IPv6Address.match_full(b"FF01:0:0:0:0:0:0:101"))
+        self.assertTrue(IPv6Address.match_full(b"FF01::101"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0:0:1"))
+        self.assertTrue(IPv6Address.match_full(b"0::1"))
+
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0:13.1.68.3"))
+        self.assertTrue(IPv6Address.match_full(b"::13.1.68.3"))
+        self.assertTrue(
+            IPv6Address.match_full(b"0:0:0:0:0:FFFF:129.144.52.38")
+        )
+        self.assertTrue(IPv6Address.match_full(b"::FFFF:129.144.52.38"))
+
+        # 6 ( h16 ":" ) ls32:
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0:0:0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0:fff:fff"))
+        self.assertTrue(IPv6Address.match_full(b"0:1:2:3:a:B:fff:fff"))
+        self.assertTrue(IPv6Address.match_full(b"012:1:2:3:a:B:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0:255.255.255.255"))
+
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:255.0.256.255"))
+
+        # "::" [ h16 / *5( h16 ":" ) ls32 ]
+        self.assertTrue(IPv6Address.match_full(b"::"))
+        self.assertTrue(IPv6Address.match_full(b"::0"))
+        self.assertTrue(IPv6Address.match_full(b"::0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0:0:0:0.0.0.0"))
+        self.assertFalse(IPv6Address.match_full(b"::0:0:0:0:0:0:0.0.0.0"))
+
+        self.assertTrue(IPv6Address.match_full(b"::0:0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0:0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0:0:0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0:0:0:0"))
+        self.assertTrue(IPv6Address.match_full(b"::0:0:0:0:0:0:0"))
+
+        ipv6_addr = "::0:0:0:0:0:0:0"
+        match_result = IPv6Address.match_start(b"::0:0:0:0:0:0:0.0.0.0")
+        self.assertIsNotNone(match_result)
+        assert isinstance(match_result, MatchResult)
+        self.assertEqual(match_result.length, len(ipv6_addr))
+
+        # ( h16 ":" ) ":" [ h16 / *4( h16 ":" ) ls32 ]
+
+        self.assertTrue(IPv6Address.match_full(b"0::"))
+        self.assertTrue(IPv6Address.match_full(b"0::ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0::0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0::FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0::0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0::0:FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0::0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0::0:0:FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0::0:0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0::0:0:0:FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0::0:0:0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0::0:0:0:0:FFFF:ffff"))
+        self.assertFalse(IPv6Address.match_full(b"0::0:0:0:0:0:0.0.0.0"))
+        self.assertFalse(IPv6Address.match_full(b"0::0:0:0:0:0:FFFF:ffff"))
+
+        # 2( h16 ":" ) ":" [ h16 / *3( h16 ":" ) ls32 ]
+        self.assertTrue(IPv6Address.match_full(b"0:0::"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::0:FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::0:0:FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::0:0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0::0:0:0:FFFF:ffff"))
+        self.assertFalse(IPv6Address.match_full(b"0:0::0:0:0:0:0.0.0.0"))
+        self.assertFalse(IPv6Address.match_full(b"0:0::0:0:0:0:FFFF:ffff"))
+
+        # 3( h16 ":" ) ":" [ h16 / *2( h16 ":" ) ls32 ]
+        self.assertTrue(IPv6Address.match_full(b"0:0:0::"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0::ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0::0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0::FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0::0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0::0:FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0::0:0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0::0:0:FFFF:ffff"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0::0:0:0:0.0.0.0"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0::0:0:0:FFFF:ffff"))
+
+        # 4( h16 ":" ) ":" [ h16 / *1( h16 ":" ) ls32 ]
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0::"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0::ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0::0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0::FFFF:ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0::0:0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0::0:FFFF:ffff"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0::0:0:0.0.0.0"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0::0:0:FFFF:ffff"))
+
+        # 5( h16 ":" ) ":" [ h16 / ls32 ]
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0::"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0::ffff"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0::0.0.0.0"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0::FFFF:ffff"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0::0:0.0.0.0"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0::0:FFFF:ffff"))
+
+        # 6( h16 ":" ) ":" [ h16 ]
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0::"))
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0::ffff"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0::0.0.0.0"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0::FFFF:ffff"))
+
+        # 7( h16 ":" ) ":"
+        self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0:0::"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:0::ffff"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:0::0.0.0.0"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:0::0"))
+        self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:0:0::"))
