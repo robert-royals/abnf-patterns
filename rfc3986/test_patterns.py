@@ -119,6 +119,7 @@ class TestLS32(TestCase):
 
 class TestIPv6Address(TestCase):
     def test_ipv6_address(self) -> None:
+        # First some arbitrary examples.
         self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0::"))
         self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0::fff"))
 
@@ -140,6 +141,10 @@ class TestIPv6Address(TestCase):
             IPv6Address.match_full(b"0:0:0:0:0:FFFF:129.144.52.38")
         )
         self.assertTrue(IPv6Address.match_full(b"::FFFF:129.144.52.38"))
+
+        self.assertFalse(IPv6Address.match_full(b"::0:0.0.0.0:0"))
+
+        # Next we cover every abnf pattern to check they match
 
         # 6 ( h16 ":" ) ls32:
         self.assertTrue(IPv6Address.match_full(b"0:0:0:0:0:0:0:0"))

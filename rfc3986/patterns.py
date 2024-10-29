@@ -165,15 +165,26 @@ class LS32(DefaultMatchAll):
 
 class IPv6Address(DefaultMatchAll):
     """
-          IPv6address =                            6( h16 ":" ) ls32
-                      /                       "::" 5( h16 ":" ) ls32
-                      / [               h16 ] "::" 4( h16 ":" ) ls32
-                      / [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
-                      / [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
-                      / [ *3( h16 ":" ) h16 ] "::"    h16 ":"   ls32
-                      / [ *4( h16 ":" ) h16 ] "::"              ls32
-                      / [ *5( h16 ":" ) h16 ] "::"              h16
-                      / [ *6( h16 ":" ) h16 ] "::"
+        IPv6address =                            6( h16 ":" ) ls32
+                    /                       "::" 5( h16 ":" ) ls32
+                    / [               h16 ] "::" 4( h16 ":" ) ls32
+                    / [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
+                    / [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
+                    / [ *3( h16 ":" ) h16 ] "::"    h16 ":"   ls32
+                    / [ *4( h16 ":" ) h16 ] "::"              ls32
+                    / [ *5( h16 ":" ) h16 ] "::"              h16
+                    / [ *6( h16 ":" ) h16 ] "::"
+        This can be expressed equivalently as:
+        IPv6address =                  "::" [ h16 / *5( h16 ":" ) ls32 ]
+                    /              h16 "::" [ h16 / *4( h16 ":" ) ls32 ]
+                    / 1( h16 ":" ) h16 "::" [ h16 / *3( h16 ":" ) ls32 ]
+                    / 2( h16 ":" ) h16 "::" [ h16 / *2( h16 ":" ) ls32 ]
+                    / 3( h16 ":" ) h16 "::" [ h16 / *1( h16 ":" ) ls32 ]
+                    / 4( h16 ":" ) h16 "::" [ h16 / ls32 ]
+                    / 5( h16 ":" ) h16 "::" [ h16 ]
+                    / 6( h16 ":" ) ( h16 "::" / ls32 )
+        which is how we will handle it to aid left-to-right processing.
+
     """
 
     colon_matcher = literal_compare(b":").match_from
@@ -185,72 +196,80 @@ class IPv6Address(DefaultMatchAll):
         # we can find, up to a maximum of 6.
         h16s_matched = 0
         offset = 0
+
         while h16s_matched < 6:
             h16_match_result = H16.match_from(val, offset)
             if h16_match_result is None:
                 break
             colon_match_result = cls.colon_matcher(val, h16_match_result.end)
             if colon_match_result is None:
-                # No match!
+                # No match! For the first 6, each h16 MUST be followed by a ":"
                 return None
             offset = colon_match_result.end
             h16s_matched += 1
 
-        if h16s_matched == 6:
-            colon_match_result = cls.colon_matcher(val, offset)
-            if colon_match_result:
-                # Cover the:
-                #     5( h16 ":" ) h16 "::" [ h16 ]
-                # cases.
-                offset += colon_match_result.length
-                h16_match_result = H16.match_from(val, offset)
-                if h16_match_result:
-                    offset += h16_match_result.length
-                return MatchResult(start=0, length=offset)
-            else:
-                # Otherwise it must continue:
-                #     h16 ::
-                # or
-                #     ls32
-                h16_match_result = H16.match_from(val, offset)
-                if not h16_match_result:
-                    return None
-                ls32_match_result = LS32.match_from(val, offset)
-                if ls32_match_result:
-                    return MatchResult(start=0, length=ls32_match_result.end)
-                # Otherwise it must end with (h16 "::")
-                offset = h16_match_result.end
-                for _ in range(2):
-                    colon_match_result = cls.colon_matcher(val, offset)
-                    if not colon_match_result:
-                        return None
-                    offset += colon_match_result.length
-                return MatchResult(start=0, length=offset)
+        colon_match_result = cls.colon_matcher(val, offset)
 
-        colons = 2 if h16s_matched == 0 else 1
-        for _ in range(colons):
-            # If it is the cases of
-            #     "::" [ h16 / *5( h16 ":" ) ls32 ]
-            # we need to count an extra colon.
-            colon_match_result = cls.colon_matcher(val, offset)
-            if not colon_match_result:
-                return None
-            else:
-                offset += colon_match_result.length
-
-        # Next deal with the post "::" part. The amount of ( h16 ":" ) repeats
-        # we can have depends on how many h16s were matched previously.
-        for _ in range(6 - h16s_matched):
-            assert isinstance(colon_match_result, MatchResult)
-            h16_match_result = H16.match_from(val, colon_match_result.end)
+        if h16s_matched == 6 and colon_match_result is None:
+            # We deal with the cases:
+            #     6( h16 ":" ) ( h16 "::" / ls32 )
+            h16_match_result = H16.match_from(val, offset)
             if not h16_match_result:
-                return MatchResult(start=0, length=offset)
+                return None
+            ls32_match_result = LS32.match_from(val, offset)
+            if ls32_match_result:
+                return MatchResult(start=0, length=ls32_match_result.end)
+            # Otherwise it must end with (h16 "::")
+            offset = h16_match_result.end
+            for _ in range(2):
+                colon_match_result = cls.colon_matcher(val, offset)
+                if not colon_match_result:
+                    return None
+                offset += colon_match_result.length
+            return MatchResult(start=0, length=offset)
+
+        if colon_match_result is None:
+            # All remaining cases must have "::" at this point, if no colon
+            # we return None
+            return None
+
+        # If it is the cases of
+        #     "::" [ h16 / *5( h16 ":" ) ls32 ]
+        # we need an extra colon. In the other cases the pattern ( h16 ":" )
+        # matched the first of the "::" already
+        if h16s_matched == 0:
+            colon_match_result = cls.colon_matcher(val, colon_match_result.end)
+            if not colon_match_result:
+                # Unexpected number of colons. No matching address possible.
+                return None
+
+        # Next deal with the post "::" part. The amount of ( h16 ":" )
+        # repetitions we can have depends on how many h16s were matched
+        # previously.
+        # Anything more proceeding must begin 'h16' as even an ls32 will begin
+        # in a manner matching h16. So if h16 does not follow, we know we can
+        # just treat it as ending at the "::"
+        h16_match_result = H16.match_from(val, colon_match_result.end)
+        if not h16_match_result:
+            return MatchResult(start=0, length=colon_match_result.end)
+        h16_end = h16_match_result.end
+
+        for i in range(6 - h16s_matched):
+            # After the last colon, we know there is a h16 matching. Does an
+            # ls32 pattern also follow the colon?
             ls32_match_result = LS32.match_from(val, colon_match_result.end)
             if not ls32_match_result:
-                offset = h16_match_result.end
-                return MatchResult(start=0, length=offset)
-            colon_match_result = cls.colon_matcher(val, h16_match_result.end)
-            offset = ls32_match_result.end
+                # If not, then the :h16 must have been the end of the address.
+                return MatchResult(start=0, length=h16_end)
+            # Did a colon follow the h16?
+            colon_match_result = cls.colon_matcher(val, h16_end)
+            ls32_end = ls32_match_result.end
             if not colon_match_result:
-                return MatchResult(start=0, length=offset)
-        return MatchResult(start=0, length=offset)
+                # If a colon didn't follow the h16, then the ls32 must have
+                # been in the ipv4 format, and this is the end of the address.
+                return MatchResult(start=0, length=ls32_end)
+            # If a colon does follow the h16, then the ls32 must have been in
+            # the (h16 : h16) form, so the ls32 also ends where a h16 ends
+            h16_end = ls32_end
+
+        return MatchResult(start=0, length=h16_end)
