@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from generic import literal_compare
+from generic import case_insensitive_compare, literal_compare
 
 
 class TestLiteralChar(TestCase):
@@ -26,3 +26,39 @@ class TestLiteralChar(TestCase):
         abc_test = literal_compare(b"abc")
         self.assertTrue(abc_test.match_full(b"abc"))
         self.assertFalse(abc_test.match_full(b"def"))
+
+
+class TestCaseInsensitiveCompare(TestCase):
+    def test_case_insensitive(self) -> None:
+        abc_test = case_insensitive_compare(b"abc")
+
+        self.assertTrue(abc_test.match_full(b"abc"))
+        self.assertTrue(abc_test.match_full(b"ABC"))
+        self.assertTrue(abc_test.match_full(b"aBc"))
+
+        abc_test = case_insensitive_compare(b"aBC")
+        self.assertTrue(abc_test.match_full(b"abc"))
+        self.assertTrue(abc_test.match_full(b"ABC"))
+        self.assertTrue(abc_test.match_full(b"aBc"))
+
+        self.assertFalse(abc_test.match_full(b"123"))
+        self.assertFalse(abc_test.match_full(b'!"#'))
+        self.assertFalse(abc_test.match_full(bytes([0x81, 0x82, 0x83])))
+
+        a_test = case_insensitive_compare(b"a")
+
+        # Check "a" matches only "a" and "A"
+        for i in range(256):
+            if i in b"Aa":
+                self.assertTrue(a_test.match_full(bytes([i])))
+            else:
+                self.assertFalse(a_test.match_full(bytes([i])))
+
+        colon_test = case_insensitive_compare(b":")
+
+        # Check ":" only matches ":"
+        for i in range(256):
+            if i in b":":
+                self.assertTrue(colon_test.match_full(bytes([i])))
+            else:
+                self.assertFalse(colon_test.match_full(bytes([i])))

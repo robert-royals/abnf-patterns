@@ -4,9 +4,16 @@ from generic import MatchResult
 from rfc3986.patterns import (
     DecOctet,
     H16,
+    Host,
+    IPLiteral,
     IPv4Address,
     IPv6Address,
+    IPvFuture,
     LS32,
+    PctEncoded,
+    RegName,
+    SubDelims,
+    Unreserved,
 )
 
 
@@ -253,3 +260,131 @@ class TestIPv6Address(TestCase):
         self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:0::0.0.0.0"))
         self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:0::0"))
         self.assertFalse(IPv6Address.match_full(b"0:0:0:0:0:0:0:0::"))
+
+
+class TestUnreserved(TestCase):
+    def test_unreserved(self) -> None:
+        self.assertTrue(Unreserved.match_full(b"a"))
+        self.assertTrue(Unreserved.match_full(b"Z"))
+        self.assertTrue(Unreserved.match_full(b"9"))
+        self.assertTrue(Unreserved.match_full(b"-"))
+        self.assertTrue(Unreserved.match_full(b"~"))
+        self.assertTrue(Unreserved.match_full(b"."))
+        self.assertTrue(Unreserved.match_full(b"_"))
+
+        self.assertFalse(Unreserved.match_full(b"("))
+        self.assertFalse(Unreserved.match_full(b" "))
+        self.assertFalse(Unreserved.match_full(b":"))
+        self.assertFalse(Unreserved.match_full(b""))
+        self.assertFalse(Unreserved.match_full(b"AA"))
+
+
+class TestSubDelims(TestCase):
+    def test_subdelims(self) -> None:
+        self.assertTrue(SubDelims.match_full(b"!"))
+        self.assertTrue(SubDelims.match_full(b"$"))
+        self.assertTrue(SubDelims.match_full(b"&"))
+        self.assertTrue(SubDelims.match_full(b"'"))
+        self.assertTrue(SubDelims.match_full(b"("))
+        self.assertTrue(SubDelims.match_full(b")"))
+        self.assertTrue(SubDelims.match_full(b"*"))
+        self.assertTrue(SubDelims.match_full(b"+"))
+        self.assertTrue(SubDelims.match_full(b","))
+        self.assertTrue(SubDelims.match_full(b";"))
+        self.assertTrue(SubDelims.match_full(b"="))
+
+        self.assertFalse(SubDelims.match_full(b"."))
+        self.assertFalse(SubDelims.match_full(b" "))
+        self.assertFalse(SubDelims.match_full(b"a"))
+        self.assertFalse(SubDelims.match_full(b""))
+        self.assertFalse(SubDelims.match_full(b"=="))
+        self.assertFalse(SubDelims.match_full(b":"))
+
+
+class TestIPvFuture(TestCase):
+    def test_ipvfuture(self) -> None:
+        self.assertTrue(IPvFuture.match_full(b"v1.a"))
+        self.assertTrue(IPvFuture.match_full(b"V1.a"))
+        self.assertTrue(IPvFuture.match_full(b"v1.abcDEF123"))
+        self.assertTrue(IPvFuture.match_full(b"v1.!$&'()*+,;="))
+        self.assertTrue(IPvFuture.match_full(b"v1.::::-._~"))
+        self.assertTrue(IPvFuture.match_full(b"V1.."))
+        self.assertTrue(IPvFuture.match_full(b"VFFFfffffff.."))
+        self.assertTrue(IPvFuture.match_full(b"VA.0:~:0"))
+        self.assertTrue(IPvFuture.match_full(b"V10.123.123.123.123.123"))
+
+        self.assertFalse(IPvFuture.match_full(b"v1."))
+        self.assertFalse(IPvFuture.match_full(b"v1.%"))
+        self.assertFalse(IPvFuture.match_full(b"v1::"))
+        self.assertFalse(IPvFuture.match_full(b"v1::"))
+        self.assertFalse(IPvFuture.match_full(b"v1.a "))
+        self.assertFalse(IPvFuture.match_full(b"v1. a"))
+        self.assertFalse(IPvFuture.match_full(b"v1.a/"))
+        self.assertFalse(IPvFuture.match_full(b"v1.a]"))
+        self.assertFalse(IPvFuture.match_full(b"v.123"))
+        self.assertFalse(IPvFuture.match_full(b"vg.123"))
+        self.assertFalse(IPvFuture.match_full(b"w1.a"))
+
+
+class TestIPLiteral(TestCase):
+    def test_ip_literal(self) -> None:
+        self.assertTrue(IPLiteral.match_full(b"[::]"))
+        self.assertTrue(IPLiteral.match_full(b"[0:0:0:0:0:0:0:0]"))
+        self.assertTrue(IPLiteral.match_full(b"[0:0:0:0:0:0:127.0.0.1]"))
+        self.assertTrue(IPLiteral.match_full(b"[v10.abc:def]"))
+        self.assertTrue(IPLiteral.match_full(b"[vABcdef.abc:def]"))
+        self.assertTrue(IPLiteral.match_full(b"[0::0:0]"))
+        self.assertTrue(IPLiteral.match_full(b"[V00f..]"))
+
+        self.assertFalse(IPLiteral.match_full(b"[::"))
+        self.assertFalse(IPLiteral.match_full(b"[127.0.0.1]"))
+        self.assertFalse(IPLiteral.match_full(b"[::999.0.0.1]"))
+
+
+class TestPctEncoded(TestCase):
+    def test_percent_encoded(self) -> None:
+        self.assertTrue(PctEncoded.match_full(b"%00"))
+        self.assertTrue(PctEncoded.match_full(b"%ff"))
+        self.assertTrue(PctEncoded.match_full(b"%Af"))
+        self.assertTrue(PctEncoded.match_full(b"%19"))
+        self.assertTrue(PctEncoded.match_full(b"%A0"))
+
+        self.assertFalse(PctEncoded.match_full(b"%Aaa"))
+        self.assertFalse(PctEncoded.match_full(b"%000"))
+        self.assertFalse(PctEncoded.match_full(b"%0"))
+        self.assertFalse(PctEncoded.match_full(b"%0g"))
+
+
+class TestRegName(TestCase):
+    def test_reg_name(self) -> None:
+        self.assertTrue(RegName.match_full(b""))
+        self.assertTrue(RegName.match_full(b"%ab"))
+        self.assertTrue(RegName.match_full(b"abc123"))
+        self.assertTrue(RegName.match_full(b"abcXYZ123_"))
+        self.assertTrue(RegName.match_full(b"~._~"))
+        self.assertTrue(RegName.match_full(b"0!()=%00"))
+        self.assertTrue(RegName.match_full(b"___"))
+        self.assertTrue(RegName.match_full(b"www.test.com"))
+        self.assertTrue(RegName.match_full(b'1.2.3.4'))
+
+        self.assertFalse(RegName.match_full(b"@"))
+        self.assertFalse(RegName.match_full(b":"))
+        self.assertFalse(RegName.match_full(b" "))
+        self.assertFalse(RegName.match_full(b'"'))
+        self.assertFalse(RegName.match_full(b'['))
+
+
+class TestHost(TestCase):
+    def test_host(self) -> None:
+        self.assertTrue(Host.match_full(b""))
+        self.assertTrue(Host.match_full(b"[::]"))
+        self.assertTrue(Host.match_full(b"[vFF.-._~]"))
+        self.assertTrue(Host.match_full(b"[V10.::]"))
+        self.assertTrue(Host.match_full(b"[::1.2.3.4]"))
+        self.assertTrue(Host.match_full(b"test.example"))
+        self.assertTrue(Host.match_full(b"127.0.0.1"))
+        self.assertTrue(Host.match_full(b"_+_"))
+
+        self.assertFalse(Host.match_full(b"[]"))
+        self.assertFalse(Host.match_full(b"[abc"))
+        self.assertFalse(Host.match_full(b"[::"))

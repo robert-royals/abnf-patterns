@@ -1,6 +1,12 @@
-from generic import DefaultMatchAll, MatchResult, literal_compare
+from generic import (
+    ConstantLength,
+    DefaultMatchAll,
+    MatchResult,
+    case_insensitive_compare,
+    literal_compare,
+)
 
-from rfc2234.patterns import Digit, HexDig
+from rfc2234.patterns import Alpha, Digit, HexDig
 
 
 class H16(DefaultMatchAll):
@@ -211,7 +217,7 @@ class IPv6Address(DefaultMatchAll):
         colon_match_result = cls.colon_matcher(val, offset)
 
         if h16s_matched == 6 and colon_match_result is None:
-            # We deal with the cases:
+            # We deal with the case:
             #     6( h16 ":" ) ( h16 "::" / ls32 )
             h16_match_result = H16.match_from(val, offset)
             if not h16_match_result:
@@ -228,9 +234,9 @@ class IPv6Address(DefaultMatchAll):
                 offset += colon_match_result.length
             return MatchResult(start=0, length=offset)
 
+        # All remaining cases must have "::" at this point, if no colon
+        # we return None
         if colon_match_result is None:
-            # All remaining cases must have "::" at this point, if no colon
-            # we return None
             return None
 
         # If it is the cases of
@@ -243,7 +249,7 @@ class IPv6Address(DefaultMatchAll):
                 # Unexpected number of colons. No matching address possible.
                 return None
 
-        # Next deal with the post "::" part. The amount of ( h16 ":" )
+        # Next deal with the part post "::". The amount of ( h16 ":" )
         # repetitions we can have depends on how many h16s were matched
         # previously.
         # Anything more proceeding must begin 'h16' as even an ls32 will begin
@@ -269,7 +275,167 @@ class IPv6Address(DefaultMatchAll):
                 # been in the ipv4 format, and this is the end of the address.
                 return MatchResult(start=0, length=ls32_end)
             # If a colon does follow the h16, then the ls32 must have been in
-            # the (h16 : h16) form, so the ls32 also ends where a h16 ends
+            # the (h16 : h16) form, so the ls32 also ends where a h16 ends, so
+            # there is no need to test for a h16 here explicitly
             h16_end = ls32_end
 
         return MatchResult(start=0, length=h16_end)
+
+
+class Unreserved(ConstantLength):
+    length = 1
+
+    @classmethod
+    def match_length_correct(cls, val: bytes) -> bool:
+        if Alpha.match_full(val):
+            return True
+        elif Digit.match_full(val):
+            return True
+        elif val[0] in b"-._~":
+            return True
+        else:
+            return False
+
+
+class SubDelims(ConstantLength):
+    length = 1
+
+    @classmethod
+    def match_length_correct(cls, val: bytes) -> bool:
+        return val[0] in b"!$&'()*+,;="
+
+
+class IPvFuture(DefaultMatchAll):
+
+    @classmethod
+    def match_start(cls, val: bytes) -> MatchResult | None:
+        """
+            IPvFuture  = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
+        """
+        v_match_result = case_insensitive_compare(b"v").match_start(val)
+        if not v_match_result:
+            return None
+
+        offset = v_match_result.end
+
+        hex_matches = 0
+        while 1:
+            hex_match_result = HexDig.match_from(val, offset)
+            if not hex_match_result:
+                break
+            else:
+                offset = hex_match_result.end
+                hex_matches += 1
+
+        if hex_matches == 0:
+            return None
+
+        full_stop_match = literal_compare(b".").match_from(val, offset)
+        if not full_stop_match:
+            return None
+        offset = full_stop_match.end
+
+        future_ip_matches = 0
+        while 1:
+            future_ip_result = cls.future_ip_char_match(val, offset)
+            if not future_ip_result:
+                break
+            else:
+                offset = future_ip_result.end
+                future_ip_matches += 1
+
+        if future_ip_matches == 0:
+            return None
+        else:
+            return MatchResult(start=0, length=offset)
+
+    @classmethod
+    def future_ip_char_match(
+        cls, val: bytes, offset: int
+    ) -> MatchResult | None:
+        return (
+            Unreserved.match_from(val, offset)
+        ) or (
+            SubDelims.match_from(val, offset)
+        ) or (
+            literal_compare(b":").match_from(val, offset)
+        )
+
+
+class IPLiteral(DefaultMatchAll):
+    @classmethod
+    def match_start(cls, val: bytes) -> MatchResult | None:
+        opening_bracket_match = literal_compare(b"[").match_start(val)
+        if not opening_bracket_match:
+            return None
+
+        ip_match = cls.match_ip_part(val, opening_bracket_match.end)
+        if not ip_match:
+            return None
+
+        closing_bracket_match = literal_compare(b"]").match_from(
+            val, ip_match.end
+        )
+
+        if not closing_bracket_match:
+            return None
+        else:
+            return MatchResult(start=0, length=closing_bracket_match.end)
+
+    @classmethod
+    def match_ip_part(cls, val: bytes, start: int) -> MatchResult | None:
+        return (
+            IPv6Address.match_from(val, start)
+        ) or (
+            IPvFuture.match_from(val, start)
+        )
+
+
+class PctEncoded(DefaultMatchAll):
+    @classmethod
+    def match_start(cls, val: bytes) -> MatchResult | None:
+        percent_match = literal_compare(b"%").match_start(val)
+        if not percent_match:
+            return None
+
+        offset = percent_match.end
+        for __ in range(2):
+            hex_match = HexDig.match_from(val, offset)
+            if not hex_match:
+                return None
+            offset = hex_match.end
+
+        return MatchResult(start=0, length=offset)
+
+
+class RegName(DefaultMatchAll):
+    @classmethod
+    def match_start(cls, val: bytes) -> MatchResult | None:
+        offset = 0
+        while 1:
+            matched_part = cls.match_part(val, offset)
+            if not matched_part:
+                return MatchResult(start=0, length=offset)
+            offset = matched_part.end
+
+    @classmethod
+    def match_part(cls, val: bytes, start: int) -> MatchResult | None:
+        return (
+            Unreserved.match_from(val, start)
+        ) or (
+            PctEncoded.match_from(val, start)
+        ) or (
+            SubDelims.match_from(val, start)
+        )
+
+
+class Host(DefaultMatchAll):
+    @classmethod
+    def match_start(cls, val: bytes) -> MatchResult | None:
+        return (
+            IPLiteral.match_start(val)
+        ) or (
+            IPv4Address.match_start(val)
+        ) or (
+            RegName.match_start(val)
+        )

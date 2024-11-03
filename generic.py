@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 
 class MatchResult:
@@ -11,7 +11,14 @@ class MatchResult:
         return self.start + self.length
 
 
-class Matcher:
+MatchResultTypeVar = TypeVar(
+    "MatchResultTypeVar",
+    bound=MatchResult,
+    default=MatchResult,
+)
+
+
+class Matcher(Generic[MatchResultTypeVar]):
     @classmethod
     def match_full(cls, val: bytes) -> bool:
         """
@@ -20,17 +27,18 @@ class Matcher:
         raise NotImplementedError
 
     @classmethod
-    def match_start(cls, val: bytes) -> MatchResult | None:
+    def match_start(cls, val: bytes) -> MatchResultTypeVar | None:
         raise NotImplementedError
 
     @classmethod
-    def match_from(cls, val: bytes, start: int) -> MatchResult | None:
+    def match_from(cls, val: bytes, start: int) -> MatchResultTypeVar | None:
         """
         Check starting at position 'from' that the pattern matches
         """
         match_result = cls.match_start(val[start:])
         if match_result is not None:
-            return MatchResult(start=start, length=match_result.length)
+            match_result.start = start
+            return match_result
         else:
             return None
 
@@ -85,6 +93,34 @@ class LiteralCompare(ConstantLength, metaclass=LiteralMetaClass):
         return val == cls.str_to_match
 
 
+class CaseInsensitiveCompare(LiteralCompare):
+    a_upper = b"A"[0]
+    z_upper = b"Z"[0]
+    case_difference = b"a"[0] - b"A"[0]
+
+    @classmethod
+    def match_length_correct(cls, val: bytes) -> bool:
+        for x, y in zip(cls.str_to_match, val):
+            if x == y:
+                continue
+
+            if (
+                cls.a_upper <= x <= cls.z_upper
+            ) and (
+                x + cls.case_difference == y
+            ):
+                continue
+
+            if (
+                cls.a_upper <= y <= cls.z_upper
+            ) and (
+                y + cls.case_difference == x
+            ):
+                continue
+            return False
+        return True
+
+
 def literal_compare(str_to_match: bytes) -> type[LiteralCompare]:
     # Takes a string such as '+' and creates a Matcher class for it
     name = f"LiteralCompare<{str_to_match.decode()}>"
@@ -94,7 +130,17 @@ def literal_compare(str_to_match: bytes) -> type[LiteralCompare]:
     return type(name, (LiteralCompare,), attrs)
 
 
-class DefaultMatchAll(Matcher):
+def case_insensitive_compare(
+    str_to_match: bytes
+) -> type[CaseInsensitiveCompare]:
+    name = f"CaseInsensitiveCompare<{str_to_match.decode()}>"
+    attrs = {
+        "str_to_match": str_to_match,
+    }
+    return type(name, (CaseInsensitiveCompare,), attrs)
+
+
+class DefaultMatchAll(Matcher[MatchResultTypeVar]):
     """
     Implement a match_from, and defines the match_full from that.
 
