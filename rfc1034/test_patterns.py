@@ -100,7 +100,7 @@ class TestSubDomain(TestCase):
 class TestDomain(TestCase):
     def test_domain(self) -> None:
         self.assertTrue(Domain.match_full(b"a"))
-        self.assertTrue(Domain.match_full(b" "))
+        self.assertTrue(Domain.match_full(b""))
 
         long_domain = b".".join([b"a"*63]*4)
         self.assertEqual(len(long_domain), 255)

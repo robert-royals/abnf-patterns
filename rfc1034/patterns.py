@@ -1,7 +1,6 @@
 from rfc2234.patterns import Alpha as Letter, Digit
 
 from generic import Matcher, literal_compare, DefaultMatchAll, MatchResult
-import special_chars
 
 
 class LetDig(DefaultMatchAll):
@@ -141,6 +140,20 @@ class SubDomain(DefaultMatchAll):
 
 
 class Domain(SubDomain):
+    """
+        <domain> ::= <subdomain> | " "
+
+        The " " specified in the definition is meant to be the empty string,
+        but in rfc1034, they use " " to represent the root node. Evidence being
+        in the example:
+            For example, A.B.C.D is a subdomain of B.C.D, C.D, D, and " ".
+        and:
+            One label is reserved, and that is the null (i.e., zero length)
+            label used for the root.
+
+        The only subdomain of A.B.C.D which " " makes sense to represent is the
+        root node, and it specifies that the root node is zero length.
+    """
     length_limit = 255
 
     @classmethod
@@ -148,5 +161,5 @@ class Domain(SubDomain):
         return (
             super().match_start(val)
         ) or (
-            literal_compare(special_chars.space).match_start(val)
+            literal_compare(b"").match_start(val)
         )
